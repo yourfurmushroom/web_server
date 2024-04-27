@@ -1,28 +1,21 @@
 import WebSocket from 'ws';
-import { ReadData,ConnectionToServer,OpenaiResponse } from "./test";
+import { ReadData,ConnectionToServer,OpenaiResponse,createAssistant,createThread } from "./test";
 import {Message,DataBase} from "./test"
 import OpenAI from "openai";
 
 
-async function WssListener(wss:WebSocket.Server,db:any,openai:OpenAI)
+async function WssListener(wss:WebSocket.Server,db:any,openai:OpenAI,assistantId:any)
 {
   wss.on('connection', (ws: WebSocket,req) => {
     console.log('New client connected');
-    console.log(getCookie(req).name)
-    
+    let thread:any;
+    createThread(openai).then(e=>{thread=e;console.log(JSON.stringify(e))})
     let uuid = crypto.randomUUID();
     console.log(uuid)
     ws.send(JSON.stringify(new Message("connection", uuid.toString())));
-    const messageList:object[]=[]
 
     ws.on('message', (message: string) => {
-      messageList.push({role:"user",content:message.toString()})
-      OpenaiResponse(openai,message,messageList).then((response:string)=>{
-        console.log(response)
-        messageList.push({role:"system",content:response.toString()})
-        db.InsertData(message,response,uuid);
-        ws.send(response);
-      });
+      OpenaiResponse(openai,thread,assistantId,message.toString()).then(e=>{ws.send(JSON.stringify(e))})
     });
 
     ws.on('close', () => {
@@ -61,7 +54,14 @@ async function main()
     project:`Default Project`
   }
   const openai=new OpenAI(openaiConfig);
-  WssListener(wss,db,openai);
+  let assistantId=await createAssistant(openai)
+  console.log(assistantId)
+  WssListener(wss,db,openai,assistantId);
+
+  
+  
+
+  
   
 
 

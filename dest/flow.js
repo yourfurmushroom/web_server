@@ -15,23 +15,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const test_1 = require("./test");
 const test_2 = require("./test");
 const openai_1 = __importDefault(require("openai"));
-function WssListener(wss, db, openai) {
+function WssListener(wss, db, openai, assistantId) {
     return __awaiter(this, void 0, void 0, function* () {
         wss.on('connection', (ws, req) => {
             console.log('New client connected');
-            console.log(getCookie(req).name);
+            let thread;
+            (0, test_1.createThread)(openai).then(e => { thread = e; console.log(JSON.stringify(e)); });
             let uuid = crypto.randomUUID();
             console.log(uuid);
             ws.send(JSON.stringify(new test_2.Message("connection", uuid.toString())));
-            const messageList = [];
             ws.on('message', (message) => {
-                messageList.push({ role: "user", content: message.toString() });
-                (0, test_1.OpenaiResponse)(openai, message, messageList).then((response) => {
-                    console.log(response);
-                    messageList.push({ role: "system", content: response.toString() });
-                    db.InsertData(message, response, uuid);
-                    ws.send(response);
-                });
+                (0, test_1.OpenaiResponse)(openai, thread, assistantId, message.toString()).then(e => { ws.send(JSON.stringify(e)); });
             });
             ws.on('close', () => {
                 ws.send(JSON.stringify(new test_2.Message("disconnect", "")));
@@ -64,7 +58,9 @@ function main() {
             project: `Default Project`
         };
         const openai = new openai_1.default(openaiConfig);
-        WssListener(wss, db, openai);
+        let assistantId = yield (0, test_1.createAssistant)(openai);
+        console.log(assistantId);
+        WssListener(wss, db, openai, assistantId);
     });
 }
 main();
